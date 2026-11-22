@@ -74,4 +74,44 @@ trips `@typescript-eslint/triple-slash-reference`. It's already in
 `.gitignore` for the same reason (we didn't write it); added to the ESLint
 `ignores` list as well.
 
+## 2026-11-22 — CI's "Node 20 deprecated" annotation is unrelated to us
+
+**What:** first CI run on GitHub (`.github/workflows/ci.yml`) passed, but
+printed: "Node.js 20 is deprecated. The following actions target Node.js 20
+but are being forced to run on Node.js 24: actions/checkout@v4,
+actions/setup-node@v4, pnpm/action-setup@v4."
+
+**Why it's not a bug here:** this is GitHub's own runner infrastructure
+auto-upgrading the Node version those *third-party actions* run on
+internally — nothing to do with our `node-version: 22` setting, which
+controls the Node version our own `pnpm install`/`typecheck`/`lint`/`test`
+steps run under. GitHub handled it automatically and the run still passed.
+Logged here only so it doesn't look mysterious in a future run; no action
+needed unless a future run actually fails because of it.
+
+## 2026-11-22 — `drizzle.config.ts` loads `.env.local` via `@next/env`
+
+**What:** added `@next/env` as an explicit dependency and called
+`loadEnvConfig(process.cwd())` at the top of `drizzle.config.ts`.
+
+**Why:** `drizzle-kit` (the migration CLI) runs as its own Node process,
+completely separate from `next dev`. Next's dev server loads `.env.local`
+for us automatically, but nothing does that for a standalone CLI — without
+this, `process.env.DATABASE_URL` would simply be `undefined` when running
+`pnpm db:generate`. `@next/env` is the exact loader Next.js itself uses
+internally for this, so our one set of `.env*` files behaves identically
+whether Next or Drizzle Kit reads it. It already existed as a transitive
+dependency of `next`, but pnpm's strict `node_modules` layout correctly
+refused to let us import it without declaring it ourselves — so it's now
+an explicit dependency, pinned to the same version as `next`.
+
+**Alternatives considered:**
+- The generic `dotenv` package (`import "dotenv/config"`) — a very common
+  choice in Drizzle tutorials, and would also have worked. Went with
+  `@next/env` instead specifically to reuse Next's own `.env` precedence
+  rules (`.env`, `.env.local`, `.env.development`, …) rather than
+  introducing a second, slightly different set of loading rules.
+
+**Where:** `drizzle.config.ts`, `package.json` (`@next/env`).
+
 **Where:** `eslint.config.mjs`.
